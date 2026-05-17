@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SuratKu - Aplikasi</title>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-dark: #1d4ed8;
+            --bg: #f1f5f9;
+            --surface: #ffffff;
+            --text: #1e293b;
+            --text-light: #64748b;
+            --border: #e2e8f0;
+            --success: #10b981;
+            --danger: #ef4444;
+            --radius: 12px;
+            --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06);
+            --shadow-md: 0 4px 6px rgba(0,0,0,0.07);
+        }
+
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family:'Segoe UI', system-ui, sans-serif; background:var(--bg); color:var(--text); }
+
+        .app-container { max-width:1200px; margin:0 auto; padding:16px; }
+
+        /* Header */
+        .app-header {
+            background:linear-gradient(135deg, #1e40af, #2563eb);
+            color:white; padding:20px 24px; border-radius:var(--radius);
+            margin-bottom:20px; box-shadow:var(--shadow-md);
+            display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;
+        }
+        .app-header h1 { font-size:1.5em; }
+        .connection-status { font-size:0.85em; padding:6px 14px; border-radius:20px; background:rgba(255,255,255,0.2); }
+        .connection-status.online { background:rgba(16,185,129,0.3); }
+        .connection-status.offline { background:rgba(239,68,68,0.3); }
+
+        /* Navigation */
+        .nav-tabs { display:flex; gap:6px; margin-bottom:20px; flex-wrap:wrap; }
+        .nav-tabs button {
+            padding:10px 20px; border:none; border-radius:20px; cursor:pointer;
+            font-weight:600; font-size:0.9em; transition:all 0.25s;
+            background:var(--surface); color:var(--text); box-shadow:var(--shadow);
+        }
+        .nav-tabs button:hover, .nav-tabs button.active { background:var(--primary); color:white; }
+
+        /* Content */
+        .tab-content { display:none; }
+        .tab-content.active { display:block; animation:fadeIn 0.3s ease; }
+        @keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+
+        .card { background:var(--surface); border-radius:var(--radius); padding:24px; box-shadow:var(--shadow); margin-bottom:20px; }
+        .card h3 { margin-bottom:16px; color:var(--primary); font-size:1.2em; }
+
+        /* Form */
+        .form-group { margin-bottom:14px; }
+        .form-group label { display:block; font-weight:600; margin-bottom:5px; color:var(--text-light); font-size:0.9em; }
+        .form-group input, .form-group textarea, .form-group select {
+            width:100%; padding:10px 14px; border:2px solid var(--border); border-radius:8px;
+            font-size:0.95em; transition:border-color 0.3s; font-family:inherit;
+        }
+        .form-group input:focus, .form-group textarea:focus, .form-group select:focus {
+            outline:none; border-color:var(--primary); box-shadow:0 0 0 3px rgba(37,99,235,0.1);
+        }
+        .form-row { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+        @media(max-width:600px){ .form-row{grid-template-columns:1fr} }
+
+        /* Buttons */
+        .btn {
+            padding:10px 22px; border:none; border-radius:20px; cursor:pointer;
+            font-weight:600; font-size:0.9em; transition:all 0.25s; display:inline-flex; align-items:center; gap:6px;
+        }
+        .btn-primary { background:var(--primary); color:white; }
+        .btn-primary:hover { background:var(--primary-dark); transform:translateY(-1px); }
+        .btn-success { background:var(--success); color:white; }
+        .btn-danger { background:var(--danger); color:white; }
+        .btn-outline { background:white; color:var(--primary); border:2px solid var(--primary); }
+
+        /* Table */
+        .table-container { overflow-x:auto; }
+        table { width:100%; border-collapse:collapse; font-size:0.9em; }
+        th, td { padding:12px; text-align:left; border-bottom:1px solid var(--border); }
+        th { background:#f8fafc; font-weight:700; color:var(--text-light); white-space:nowrap; }
+        tr:hover { background:#f8fafc; }
+        .badge { padding:4px 10px; border-radius:12px; font-size:0.8em; font-weight:600; }
+        .badge-masuk { background:#d1fae5; color:#065f46; }
+        .badge-keluar { background:#dbeafe; color:#1e40af; }
+
+        /* Stats */
+        .stats-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); gap:16px; margin-bottom:20px; }
+        .stat-card { background:var(--surface); padding:20px; border-radius:var(--radius); text-align:center; box-shadow:var(--shadow); }
+        .stat-card h4 { font-size:2em; color:var(--primary); }
+        .stat-card p { color:var(--text-light); font-size:0.85em; margin-top:4px; }
+
+        /* Modal */
+        .modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:1000; justify-content:center; align-items:center; }
+        .modal.active { display:flex; }
+        .modal-content { background:white; border-radius:var(--radius); padding:28px; max-width:700px; width:94%; max-height:85vh; overflow-y:auto; }
+        .letter-preview { background:white; border:2px solid #ddd; padding:32px; margin:16px 0; font-family:'Times New Roman', serif; line-height:1.8; }
+        .letter-preview .kop { text-align:center; border-bottom:2px double #333; padding-bottom:12px; margin-bottom:20px; }
+        .letter-preview .ttd { margin-top:36px; text-align:right; }
+
+        /* Toast */
+        .toast { position:fixed; bottom:24px; right:24px; background:var(--success); color:white; padding:14px 24px; border-radius:20px; font-weight:600; z-index:2000; animation:slideIn 0.4s ease; box-shadow:var(--shadow-md); }
+        @keyframes slideIn { from{transform:translateX(100%);opacity:0} to{transform:translateX(0);opacity:1} }
+
+        /* Upload area */
+        .upload-area { border:2px dashed var(--border); border-radius:8px; padding:24px; text-align:center; cursor:pointer; transition:all 0.3s; margin-top:8px; }
+        .upload-area:hover { border-color:var(--primary); background:#f8fafc; }
+        .file-list { margin-top:12px; }
+        .file-item { display:flex; justify-content:space-between; align-items:center; padding:8px 12px; background:#f8fafc; border-radius:6px; margin-top:6px; }
+
+        .loading { text-align:center; padding:40px; color:var(--text-light); }
+        .empty { text-align:center; padding:40px; color:var(--text-light); }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <div class="app-header">
+            <h1>📋 Sistem Surat Menyurat</h1>
+            <span class="connection-status" id="connectionStatus">🟡 Menghubungkan...</span>
+        </div>
+
+        <!-- Navigation -->
+        <div class="nav-tabs">
+            <button class="active" onclick="showTab('dashboard')">📊 Dashboard</button>
+            <button onclick="showTab('buat')">✍️ Buat Surat</button>
+            <button onclick="showTab('masuk')">📥 Surat Masuk</button>
+            <button onclick="showTab('keluar')">📤 Surat Keluar</button>
+        </div>
+
+        <!-- Dashboard -->
+        <div id="dashboard" class="tab-content active">
+            <div class="stats-grid" id="statsContainer"></div>
+            <div class="card">
+                <h3>📋 Surat Terbaru</h3>
+                <div id="recentSurat"></div>
+            </div>
+        </div>
+
+        <!-- Buat Surat -->
+        <div id="buat" class="tab-content">
+            <div class="card">
+                <h3>✍️ Buat Surat Baru</h3>
+                <form id="formSurat" onsubmit="simpanSurat(event)">
+                    <div class="form-group">
+                        <label>Jenis Surat</label>
+                        <select id="jenisSurat" required onchange="generateNomor()">
+                            <option value="">-- Pilih Jenis --</option>
+                            <option value="masuk">Surat Masuk</option>
+                            <option value="keluar">Surat Keluar</option>
+                        </select>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Nomor Surat (Auto)</label>
+                            <input type="text" id="nomorSurat" readonly placeholder="Terisi otomatis">
+                        </div>
+                        <div class="form-group">
+                            <label>Tanggal Surat</label>
+                            <input type="date" id="tanggalSurat" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Pengirim / Dari</label>
+                            <input type="text" id="pengirim" required placeholder="Nama pengirim">
+                        </div>
+                        <div class="form-group">
+                            <label>Penerima / Kepada</label>
+                            <input type="text" id="penerima" required placeholder="Nama penerima">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Perihal</label>
+                        <input type="text" id="perihal" required placeholder="Perihal surat">
+                    </div>
+                    <div class="form-group">
+                        <label>Isi Surat</label>
+                        <textarea id="isiSurat" rows="6" required placeholder="Tulis isi surat..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Penanda Tangan</label>
+                        <input type="text" id="penandaTangan" value="Pimpinan">
+                    </div>
+                    <div class="form-group">
+                        <label>📎 Lampiran (Opsional)</label>
+                        <div class="upload-area" id="uploadArea" onclick="document.getElementById('fileInput').click()">
+                            <p>📁 Klik atau drag & drop file di sini</p>
+                            <small style="color:var(--text-light)">PDF, DOC, JPG, PNG (Max 10MB)</small>
+                        </div>
+                        <input type="file" id="fileInput" multiple style="display:none" onchange="handleFileSelect(event)" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png">
+                        <div class="file-list" id="fileList"></div>
+                    </div>
+                    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                        <button type="submit" class="btn btn-primary">💾 Simpan Surat</button>
+                        <button type="button" class="btn btn-outline" onclick="previewSurat()">👁️ Preview</button>
+                        <button type="reset" class="btn btn-outline" onclick="resetForm()">🔄 Reset</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Surat Masuk -->
+        <div id="masuk" class="tab-content">
+            <div class="card">
+                <h3>📥 Daftar Surat Masuk</h3>
+                <div class="form-group">
+                    <input type="text" id="searchMasuk" placeholder="🔍 Cari surat masuk..." onkeyup="loadSurat('masuk')">
+                </div>
+                <div class="table-container">
+                    <table>
+                        <thead><tr><th>No</th><th>Nomor</th><th>Tanggal</th><th>Pengirim</th><th>Perihal</th><th>Status</th><th>Aksi</th></tr></thead>
+                        <tbody id="tbodyMasuk"></tbody>
+                    </table>
+                </div>
+                <div id="paginationMasuk" style="margin-top:16px;text-align:center;"></div>
+            </div>
+        </div>
+
+        <!-- Surat Keluar -->
+        <div id="keluar" class="tab-content">
+            <div class="card">
+                <h3>📤 Daftar Surat Keluar</h3>
+                <div class="form-group">
+                    <input type="text" id="searchKeluar" placeholder="🔍 Cari surat keluar..." onkeyup="loadSurat('keluar')">
+                </div>
+                <div class="table-container">
+                    <table>
+                        <thead><tr><th>No</th><th>Nomor</th><th>Tanggal</th><th>Penerima</th><th>Perihal</th><th>Status</th><th>Aksi</th></tr></thead>
+                        <tbody id="tbodyKeluar"></tbody>
+                    </table>
+                </div>
+                <div id="paginationKeluar" style="margin-top:16px;text-align:center;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Preview -->
+    <div class="modal" id="modalPreview">
+        <div class="modal-content">
+            <h3>📄 Preview Surat</h3>
+            <div class="letter-preview" id="letterPreview"></div>
+            <button class="btn btn-primary" onclick="window.print()">🖨️ Cetak</button>
+            <button class="btn btn-outline" onclick="document.getElementById('modalPreview').classList.remove('active')">❌ Tutup</button>
+        </div>
+    </div>
+
+    <script src="assets/js/app.js"></script>
+</body>
+</html>

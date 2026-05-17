@@ -1,0 +1,352 @@
+<?php
+/**
+ * API CRUD Surat
+ * Endpoint: /api/surat.php
+ */
+
+require_once 'config.php';
+
+// Ambil method HTTP
+$method = $_SERVER['REQUEST_METHOD'];
+
+// Ambil parameter dari URL
+$id = isset($_GET['id']) ? (int)$_GET['id'] : null;
+$action = isset($_GET['action']) ? $_GET['action'] : '';
+
+// Routing
+switch ($method) {
+    case 'GET':
+        if ($action === 'generate_nomor') {
+            generateNomor();
+        } elseif ($action === 'stats') {
+            getStats();
+        } elseif ($id) {
+            getSurat($id);
+        } else {
+            getSuratList();
+        }
+        break;
+    
+    case 'POST':
+        createSurat();
+        break;
+    
+    case 'PUT':
+        if ($id) {
+            updateSurat($id);
+        } else {
+            jsonResponse(['status' => 'error', 'message' => 'ID surat diperlukan'], 400);
+        }
+        break;
+    
+    case 'DELETE':
+        if ($id) {
+            deleteSurat($id);
+        } else {
+            jsonResponse(['status' => 'error', 'message' => 'ID surat diperlukan'], 400);
+        }
+        break;
+    
+    default:
+        jsonResponse(['status' => 'error', 'message' => 'Method tidak diizinkan'], 405);
+}
+
+// ============================================
+// GET: Ambil daftar surat
+// ============================================
+function getSuratList() {
+    $db = getDB();
+    
+    $jenis = isset($_GET['jenis']) ? $_GET['jenis'] : '';
+    $search = isset($_GET['search']) ? $_GET['search'] : '';
+    $page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
+    $limit = isset($_GET['limit']) ? min(50, (int)$_GET['limit']) : 20;
+    $offset = ($page - 1) * $limit;
+    
+    $where = [];
+    $params = [];
+    
+    if ($jenis && in_array($jenis, ['masuk', 'keluar'])) {
+        $where[] = "s.jenis = ?";
+        $params[] = $jenis;
+    }
+    
+    if ($search) {
+        $where[] = "(s.nomor_surat LIKE ? OR s.pengirim LIKE ? OR s.penerima LIKE ? OR s.perihal LIKE ?)";
+        $searchTerm = "%$search%";
+        $params = array_merge($params, [$searchTerm, $searchTerm, $searchTerm, $searchTerm]);
+    }
+    
+    $whereClause = $where ? 'WHERE ' . implode(' AND ', $where) : '';
+    
+    // Hitung total
+    $countSql = "SELECT COUNT(*) FROM surat s $whereClause";
+    $stmt = $db->prepare($countSql);
+    $stmt->execute($params);
+    $total = $stmt->fetchColumn();
+    
+    // Ambil data
+    $sql = "SELECT s.*, u.nama_lengkap as created_by_name,
+            (SELECT COUNT(*) FROM lampiran l WHERE l.surat_id = s.id) as jumlah_lampiran
+            FROM surat s
+            LEFT JOIN users u ON s.created_by = u.id
+            $whereClause
+            ORDER BY s.tanggal_surat DESC, s.id DESC
+            LIMIT $limit OFFSET $offset";
+    
+    $stmt = $db->prepare($sql);
+    $stmt->execute($params);
+    $surat = $stmt->fetchAll();
+    
+    jsonResponse([
+        'status' => 'success',
+        'data' => $surat,
+        'pagination' => [
+            'page' => $page,
+            'limit' => $limit,
+            'total' => (int)$total,
+            'total_pages' => ceil($total / $limit)
+        ]
+    ]);
+}
+
+// ============================================
+// GET: Ambil satu surat
+// ============================================
+function getSurat($id) {
+    $db = getDB();
+    
+    $stmt = $db->prepare("SELECT s.*, u.nama_lengkap as created_by_name FROM surat s LEFT JOIN users u ON s.created_by = u.id WHERE s.id = ?");
+    $stmt->execute([$id]);
+    $surat = $stmt->fetch();
+    
+    if (!$surat) {
+        jsonResponse(['status' => 'error', 'message' => 'Surat tidak ditemukan'], 404);
+    }
+    
+    // Ambil lampiran
+    $stmt = $db->prepare("SELECT * FROM lampiran WHERE surat_id = ?");
+    $stmt->execute([$id]);
+    $surat['lampiran'] = $stmt->fetchAll();
+    
+    jsonResponse(['status' => 'success', 'data' => $surat]);
+}
+
+// ============================================
+// POST: Buat surat baru
+// ============================================
+function createSurat() {
+    $db = getDB();
+    
+    // Ambil input JSON
+    $input = json_decode(file_get_contents('php://input'), true);
+    
+    if (!$input) {
+        $input = $_POST;
+    }
+    
+    // Validasi required fields
+    $required = ['jenis', 'tanggal_surat', 'pengirim', 'penerima', 'perihal', 'isi_surat'];
+    foreach ($required as $field) {
+        if (empty($input[$field])) {
+            jsonResponse(['status' => 'error', 'message' => "Field '$field' harus diisi"], 400);
+        }
+    }
+    
+    // Generate nomor surat jika tidak diisi
+    $nomorSurat = !empty($input['nomor_surat']) 
+        ? sanitizeInput($input['nomor_surat']) 
+        : generateNomorSurat($input['jenis']);
+    
+    // Cek duplikat nomor
+    $stmt = $db->prepare("SELECT id FROM surat WHERE nomor_surat = ?");
+    $stmt->execute([$nomorSurat]);
+    if ($stmt->fetch()) {
+        jsonResponse(['status' => 'error', 'message' => 'Nomor surat sudah digunakan'], 409);
+    }
+    
+    try {
+        $db->beginTransaction();
+        
+        $stmt = $db->prepare("INSERT INTO surat (nomor_surat, jenis, tanggal_surat, pengirim, penerima, perihal, isi_surat, penanda_tangan, status, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        
+        $stmt->execute([
+            $nomorSurat,
+            sanitizeInput($input['jenis']),
+            sanitizeInput($input['tanggal_surat']),
+            sanitizeInput($input['pengirim']),
+            sanitizeInput($input['penerima']),
+            sanitizeInput($input['perihal']),
+            $input['isi_surat'], // Biarkan original untuk TEXT
+            sanitizeInput($input['penanda_tangan'] ?? 'Pimpinan'),
+            sanitizeInput($input['status'] ?? 'draft'),
+            $input['user_id'] ?? 1
+        ]);
+        
+        $suratId = $db->lastInsertId();
+        
+        // Log aktivitas
+        logAktivitas($input['user_id'] ?? 1, $suratId, 'create', "Membuat surat $nomorSurat");
+        
+        $db->commit();
+        
+        jsonResponse([
+            'status' => 'success',
+            'message' => 'Surat berhasil dibuat',
+            'data' => [
+                'id' => $suratId,
+                'nomor_surat' => $nomorSurat
+            ]
+        ], 201);
+        
+    } catch (Exception $e) {
+        $db->rollBack();
+        jsonResponse(['status' => 'error', 'message' => 'Gagal membuat surat: ' . $e->getMessage()], 500);
+    }
+}
+
+// ============================================
+// PUT: Update surat
+// ============================================
+function updateSurat($id) {
+    $db = getDB();
+    
+    // Cek surat exists
+    $stmt = $db->prepare("SELECT * FROM surat WHERE id = ?");
+    $stmt->execute([$id]);
+    $surat = $stmt->fetch();
+    
+    if (!$surat) {
+        jsonResponse(['status' => 'error', 'message' => 'Surat tidak ditemukan'], 404);
+    }
+    
+    $input = json_decode(file_get_contents('php://input'), true);
+    if (!$input) {
+        $input = $_POST;
+    }
+    
+    $fields = [];
+    $params = [];
+    
+    $updatable = ['nomor_surat', 'jenis', 'tanggal_surat', 'pengirim', 'penerima', 'perihal', 'isi_surat', 'penanda_tangan', 'status'];
+    
+    foreach ($updatable as $field) {
+        if (isset($input[$field])) {
+            $fields[] = "$field = ?";
+            $params[] = $field === 'isi_surat' ? $input[$field] : sanitizeInput($input[$field]);
+        }
+    }
+    
+    if (empty($fields)) {
+        jsonResponse(['status' => 'error', 'message' => 'Tidak ada data yang diupdate'], 400);
+    }
+    
+    $params[] = $id;
+    
+    $sql = "UPDATE surat SET " . implode(', ', $fields) . " WHERE id = ?";
+    $stmt = $db->prepare($sql);
+    $stmt->execute($params);
+    
+    // Log aktivitas
+    logAktivitas($input['user_id'] ?? 1, $id, 'update', "Mengupdate surat {$surat['nomor_surat']}");
+    
+    jsonResponse(['status' => 'success', 'message' => 'Surat berhasil diupdate']);
+}
+
+// ============================================
+// DELETE: Hapus surat
+// ============================================
+function deleteSurat($id) {
+    $db = getDB();
+    
+    // Cek surat exists
+    $stmt = $db->prepare("SELECT * FROM surat WHERE id = ?");
+    $stmt->execute([$id]);
+    $surat = $stmt->fetch();
+    
+    if (!$surat) {
+        jsonResponse(['status' => 'error', 'message' => 'Surat tidak ditemukan'], 404);
+    }
+    
+    try {
+        $db->beginTransaction();
+        
+        // Hapus file lampiran
+        $stmt = $db->prepare("SELECT * FROM lampiran WHERE surat_id = ?");
+        $stmt->execute([$id]);
+        $lampiran = $stmt->fetchAll();
+        
+        foreach ($lampiran as $file) {
+            $filePath = UPLOAD_DIR . $file['nama_file'];
+            if (file_exists($filePath)) {
+                unlink($filePath);
+            }
+        }
+        
+        // Hapus dari database (CASCADE akan menghapus lampiran juga)
+        $stmt = $db->prepare("DELETE FROM surat WHERE id = ?");
+        $stmt->execute([$id]);
+        
+        // Log aktivitas
+        logAktivitas($_GET['user_id'] ?? 1, $id, 'delete', "Menghapus surat {$surat['nomor_surat']}");
+        
+        $db->commit();
+        
+        jsonResponse(['status' => 'success', 'message' => 'Surat berhasil dihapus']);
+        
+    } catch (Exception $e) {
+        $db->rollBack();
+        jsonResponse(['status' => 'error', 'message' => 'Gagal menghapus surat: ' . $e->getMessage()], 500);
+    }
+}
+
+// ============================================
+// GET: Generate nomor surat
+// ============================================
+function generateNomor() {
+    $jenis = isset($_GET['jenis']) ? $_GET['jenis'] : 'keluar';
+    
+    if (!in_array($jenis, ['masuk', 'keluar'])) {
+        jsonResponse(['status' => 'error', 'message' => 'Jenis surat tidak valid'], 400);
+    }
+    
+    $nomor = generateNomorSurat($jenis);
+    
+    jsonResponse(['status' => 'success', 'data' => ['nomor_surat' => $nomor, 'jenis' => $jenis]]);
+}
+
+// ============================================
+// GET: Statistik dashboard
+// ============================================
+function getStats() {
+    $db = getDB();
+    
+    $stats = [];
+    
+    // Total surat
+    $stmt = $db->query("SELECT COUNT(*) FROM surat");
+    $stats['total_surat'] = (int)$stmt->fetchColumn();
+    
+    // Surat masuk
+    $stmt = $db->query("SELECT COUNT(*) FROM surat WHERE jenis = 'masuk'");
+    $stats['surat_masuk'] = (int)$stmt->fetchColumn();
+    
+    // Surat keluar
+    $stmt = $db->query("SELECT COUNT(*) FROM surat WHERE jenis = 'keluar'");
+    $stats['surat_keluar'] = (int)$stmt->fetchColumn();
+    
+    // Surat bulan ini
+    $stmt = $db->query("SELECT COUNT(*) FROM surat WHERE MONTH(tanggal_surat) = MONTH(CURRENT_DATE()) AND YEAR(tanggal_surat) = YEAR(CURRENT_DATE())");
+    $stats['surat_bulan_ini'] = (int)$stmt->fetchColumn();
+    
+    // Total lampiran
+    $stmt = $db->query("SELECT COUNT(*) FROM lampiran");
+    $stats['total_lampiran'] = (int)$stmt->fetchColumn();
+    
+    // Total user
+    $stmt = $db->query("SELECT COUNT(*) FROM users");
+    $stats['total_user'] = (int)$stmt->fetchColumn();
+    
+    jsonResponse(['status' => 'success', 'data' => $stats]);
+}
+?>

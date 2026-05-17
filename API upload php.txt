@@ -1,0 +1,116 @@
+<?php
+/**
+ * API Upload Lampiran Surat
+ * Endpoint: /api/upload.php
+ */
+
+require_once 'config.php';
+
+// Hanya menerima POST
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    jsonResponse(['status' => 'error', 'message' => 'Method tidak diizinkan'], 405);
+}
+
+// Cek surat_id
+$suratId = isset($_POST['surat_id']) ? (int)$_POST['surat_id'] : 0;
+
+if (!$suratId) {
+    jsonResponse(['status' => 'error', 'message' => 'ID surat diperlukan'], 400);
+}
+
+// Cek surat exists
+$db = getDB();
+$stmt = $db->prepare("SELECT id FROM surat WHERE id = ?");
+$stmt->execute([$suratId]);
+if (!$stmt->fetch()) {
+    jsonResponse(['status' => 'error', 'message' => 'Surat tidak ditemukan'], 404);
+}
+
+// Cek file diupload
+if (!isset($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
+    $errorMessages = [
+        UPLOAD_ERR_INI_SIZE => 'File melebihi ukuran maksimum yang diizinkan server',
+        UPLOAD_ERR_FORM_SIZE => 'File melebihi ukuran maksimum yang diizinkan form',
+        UPLOAD_ERR_PARTIAL => 'File hanya terupload sebagian',
+        UPLOAD_ERR_NO_FILE => 'Tidak ada file yang diupload',
+        UPLOAD_ERR_NO_TMP_DIR => 'Folder temporary tidak ditemukan',
+        UPLOAD_ERR_CANT_WRITE => 'Gagal menulis file ke disk',
+    ];
+    
+    $errorCode = $_FILES['file']['error'] ?? UPLOAD_ERR_NO_FILE;
+    $message = $errorMessages[$errorCode] ?? 'Error upload tidak diketahui';
+    
+    jsonResponse(['status' => 'error', 'message' => $message], 400);
+}
+
+$file = $_FILES['file'];
+
+// Validasi ukuran file
+if ($file['size'] > MAX_UPLOAD_SIZE) {
+    jsonResponse(['status' => 'error', 'message' => 'Ukuran file maksimal 10MB'], 400);
+}
+
+// Validasi tipe file
+$ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+if (!in_array($ext, ALLOWED_TYPES)) {
+    jsonResponse(['status' => 'error', 'message' => 'Tipe file tidak diizinkan. Allowed: ' . implode(', ', ALLOWED_TYPES)], 400);
+}
+
+// Buat folder upload jika belum ada
+if (!is_dir(UPLOAD_DIR)) {
+    mkdir(UPLOAD_DIR, 0755, true);
+}
+
+// Buat subfolder berdasarkan tahun/bulan
+$subDir = date('Y') . '/' . date('m');
+$uploadPath = UPLOAD_DIR . $subDir;
+if (!is_dir($uploadPath)) {
+    mkdir($uploadPath, 0755, true);
+}
+
+// Generate nama file unik
+$uniqueName = uniqid('surat_') . '_' . time() . '.' . $ext;
+$fullPath = $uploadPath . '/' . $uniqueName;
+
+// Pindahkan file
+if (!move_uploaded_file($file['tmp_name'], $fullPath)) {
+    jsonResponse(['status' => 'error', 'message' => 'Gagal menyimpan file'], 500);
+}
+
+// Simpan ke database
+try {
+    $stmt = $db->prepare("INSERT INTO lampiran (surat_id, nama_file, nama_asli, ukuran_file, tipe_file, path_file) VALUES (?, ?, ?, ?, ?, ?)");
+    $stmt->execute([
+        $suratId,
+        $uniqueName,
+        $file['name'],
+        $file['size'],
+        $file['type'],
+        $subDir . '/' . $uniqueName
+    ]);
+    
+    $lampiranId = $db->lastInsertId();
+    
+    // Log aktivitas
+    logAktivitas($_POST['user_id'] ?? 1, $suratId, 'upload', "Upload lampiran: {$file['name']}");
+    
+    jsonResponse([
+        'status' => 'success',
+        'message' => 'File berhasil diupload',
+        'data' => [
+            'id' => $lampiranId,
+            'nama_file' => $uniqueName,
+            'nama_asli' => $file['name'],
+            'ukuran' => $file['size'],
+            'url' => BASE_URL . '/assets/uploads/' . $subDir . '/' . $uniqueName
+        ]
+    ], 201);
+    
+} catch (Exception $e) {
+    // Hapus file jika gagal simpan database
+    if (file_exists($fullPath)) {
+        unlink($fullPath);
+    }
+    jsonResponse(['status' => 'error', 'message' => 'Gagal menyimpan data: ' . $e->getMessage()], 500);
+}
+?>

@@ -1,0 +1,145 @@
+<?php
+/**
+ * Konfigurasi Database & Aplikasi
+ */
+
+// Error reporting (matikan di production)
+error_reporting(E_ALL);
+ini_set('display_errors', 0);
+ini_set('log_errors', 1);
+
+// Timezone
+date_default_timezone_set('Asia/Jakarta');
+
+// ============================================
+// KONFIGURASI DATABASE
+// ============================================
+define('DB_HOST', 'localhost');
+define('DB_NAME', 'suratku_db');
+define('DB_USER', 'root');          // Ganti dengan user hosting Anda
+define('DB_PASS', '');               // Ganti dengan password hosting Anda
+define('DB_CHARSET', 'utf8mb4');
+
+// ============================================
+// KONFIGURASI APLIKASI
+// ============================================
+define('BASE_URL', 'https://suratku.com');  // Ganti dengan domain Anda
+define('UPLOAD_DIR', __DIR__ . '/../assets/uploads/');
+define('MAX_UPLOAD_SIZE', 10 * 1024 * 1024); // 10MB
+define('ALLOWED_TYPES', ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'jpg', 'jpeg', 'png']);
+
+// ============================================
+// KONEKSI DATABASE (PDO)
+// ============================================
+function getDB() {
+    static $pdo = null;
+    
+    if ($pdo === null) {
+        try {
+            $dsn = "mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=" . DB_CHARSET;
+            $options = [
+                PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE  => PDO::FETCH_ASSOC,
+                PDO::ATTR_EMULATE_PREPARES    => false,
+                PDO::MYSQL_ATTR_INIT_COMMAND  => "SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci"
+            ];
+            
+            $pdo = new PDO($dsn, DB_USER, DB_PASS, $options);
+        } catch (PDOException $e) {
+            http_response_code(500);
+            echo json_encode([
+                'status' => 'error',
+                'message' => 'Koneksi database gagal: ' . $e->getMessage()
+            ]);
+            exit;
+        }
+    }
+    
+    return $pdo;
+}
+
+// ============================================
+// FUNGSI RESPONSE JSON
+// ============================================
+function jsonResponse($data, $statusCode = 200) {
+    http_response_code($statusCode);
+    header('Content-Type: application/json; charset=utf-8');
+    header('Access-Control-Allow-Origin: *');
+    header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
+    header('Access-Control-Allow-Headers: Content-Type, Authorization');
+    echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+    exit;
+}
+
+// ============================================
+// FUNGSI VALIDASI INPUT
+// ============================================
+function sanitizeInput($data) {
+    if (is_array($data)) {
+        return array_map('sanitizeInput', $data);
+    }
+    return htmlspecialchars(strip_tags(trim($data)), ENT_QUOTES, 'UTF-8');
+}
+
+// ============================================
+// FUNGSI LOG AKTIVITAS
+// ============================================
+function logAktivitas($userId, $suratId, $aksi, $deskripsi = '') {
+    try {
+        $db = getDB();
+        $stmt = $db->prepare("INSERT INTO log_aktivitas (user_id, surat_id, aksi, deskripsi, ip_address) VALUES (?, ?, ?, ?, ?)");
+        $stmt->execute([
+            $userId,
+            $suratId,
+            $aksi,
+            $deskripsi,
+            $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1'
+        ]);
+    } catch (Exception $e) {
+        // Silent fail untuk logging
+        error_log("Log error: " . $e->getMessage());
+    }
+}
+
+// ============================================
+// FUNGSI GENERATE NOMOR SURAT
+// ============================================
+function generateNomorSurat($jenis) {
+    $db = getDB();
+    
+    // Ambil format dari pengaturan
+    $stmt = $db->query("SELECT nilai FROM pengaturan WHERE kunci = 'format_nomor'");
+    $format = $stmt->fetchColumn() ?: '{nomor}/{kode}/{bulan_romawi}/{tahun}';
+    
+    // Hitung nomor urut
+    $tahun = date('Y');
+    $stmt = $db->prepare("SELECT COUNT(*) FROM surat WHERE jenis = ? AND YEAR(tanggal_surat) = ?");
+    $stmt->execute([$jenis, $tahun]);
+    $count = $stmt->fetchColumn() + 1;
+    
+    $kode = $jenis === 'masuk' ? 'SM' : 'SK';
+    $bulanRomawi = getBulanRomawi(date('n'));
+    
+    $nomor = str_replace(
+        ['{nomor}', '{kode}', '{bulan_romawi}', '{tahun}', '{bulan}'],
+        [str_pad($count, 3, '0', STR_PAD_LEFT), $kode, $bulanRomawi, $tahun, date('m')],
+        $format
+    );
+    
+    return $nomor;
+}
+
+function getBulanRomawi($bulan) {
+    $romawi = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'];
+    return $romawi[$bulan - 1];
+}
+
+// Handle CORS preflight
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    header('Access-Control-Allow-Origin: *');
+    header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
+    header('Access-Control-Allow-Headers: Content-Type, Authorization');
+    http_response_code(200);
+    exit;
+}
+?>

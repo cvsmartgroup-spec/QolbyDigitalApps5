@@ -1,0 +1,104 @@
+-- ============================================
+-- DATABASE: Sistem Surat Menyurat (SuratKu)
+-- ============================================
+
+CREATE DATABASE IF NOT EXISTS suratku_db
+    CHARACTER SET utf8mb4
+    COLLATE utf8mb4_unicode_ci;
+
+USE suratku_db;
+
+-- ============================================
+-- Tabel: users (untuk multi-user)
+-- ============================================
+CREATE TABLE users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(50) NOT NULL UNIQUE,
+    password VARCHAR(255) NOT NULL,
+    nama_lengkap VARCHAR(100) NOT NULL,
+    email VARCHAR(100),
+    role ENUM('admin', 'staff') DEFAULT 'staff',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
+-- Password default: admin123 (bcrypt hash)
+INSERT INTO users (username, password, nama_lengkap, email, role) VALUES
+('admin', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Administrator', 'admin@suratku.com', 'admin'),
+('staff1', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Staff Satu', 'staff1@suratku.com', 'staff');
+
+-- ============================================
+-- Tabel: surat
+-- ============================================
+CREATE TABLE surat (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    nomor_surat VARCHAR(50) NOT NULL UNIQUE,
+    jenis ENUM('masuk', 'keluar') NOT NULL,
+    tanggal_surat DATE NOT NULL,
+    pengirim VARCHAR(150) NOT NULL,
+    penerima VARCHAR(150) NOT NULL,
+    perihal VARCHAR(200) NOT NULL,
+    isi_surat TEXT NOT NULL,
+    penanda_tangan VARCHAR(100) DEFAULT 'Pimpinan',
+    status ENUM('draft', 'terkirim', 'diterima', 'arsip') DEFAULT 'draft',
+    created_by INT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+    INDEX idx_jenis (jenis),
+    INDEX idx_tanggal (tanggal_surat),
+    INDEX idx_nomor (nomor_surat),
+    FULLTEXT idx_pencarian (pengirim, penerima, perihal, isi_surat)
+) ENGINE=InnoDB;
+
+-- ============================================
+-- Tabel: lampiran (untuk upload file)
+-- ============================================
+CREATE TABLE lampiran (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    surat_id INT NOT NULL,
+    nama_file VARCHAR(255) NOT NULL,
+    nama_asli VARCHAR(255) NOT NULL,
+    ukuran_file INT NOT NULL COMMENT 'Ukuran dalam bytes',
+    tipe_file VARCHAR(50) NOT NULL COMMENT 'MIME type',
+    path_file VARCHAR(500) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (surat_id) REFERENCES surat(id) ON DELETE CASCADE,
+    INDEX idx_surat (surat_id)
+) ENGINE=InnoDB;
+
+-- ============================================
+-- Tabel: log_aktivitas
+-- ============================================
+CREATE TABLE log_aktivitas (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT,
+    surat_id INT,
+    aksi VARCHAR(50) NOT NULL COMMENT 'create, update, delete, view, print',
+    deskripsi TEXT,
+    ip_address VARCHAR(45),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY (surat_id) REFERENCES surat(id) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+-- ============================================
+-- Tabel: pengaturan
+-- ============================================
+CREATE TABLE pengaturan (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    kunci VARCHAR(50) NOT NULL UNIQUE,
+    nilai TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
+-- Pengaturan default
+INSERT INTO pengaturan (kunci, nilai) VALUES
+('nama_instansi', 'Kantor SuratKu'),
+('alamat_instansi', 'Jl. Merdeka No. 123, Jakarta'),
+('telepon_instansi', '(021) 1234-5678'),
+('email_instansi', 'info@suratku.com'),
+('format_nomor', '{nomor}/{kode}/{bulan_romawi}/{tahun}'),
+('max_upload_size', '10485760'),
+('allowed_file_types', 'pdf,doc,docx,xls,xlsx,jpg,jpeg,png');

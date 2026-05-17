@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistem Surat Menyurat - Solusi Manajemen Surat Modern</title>
+    <style>
+        :root {
+            --primary: #1a73e8;
+            --primary-dark: #1557b0;
+            --secondary: #34a853;
+            --danger: #ea4335;
+            --warning: #fbbc04;
+            --bg: #f8fafc;
+            --text: #1e293b;
+            --text-light: #64748b;
+            --white: #ffffff;
+            --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
+            --shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            --shadow-lg: 0 10px 40px rgba(0, 0, 0, 0.15);
+            --radius: 12px;
+            --radius-lg: 20px;
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            overflow-x: hidden;
+            scroll-behavior: smooth;
+        }
+
+        /* ==================== NAVBAR ==================== */
+        .navbar {
+            position: fixed;
+            top: 0;
+            width: 100%;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            z-index: 1000;
+            padding: 15px 0;
+            box-shadow: var(--shadow-sm);
+            transition: var(--transition);
+        }
+
+        .navbar.scrolled {
+            padding: 10px 0;
+            box-shadow: var(--shadow);
+        }
+
+        .nav-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 25px;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 1.5em;
+            font-weight: 700;
+            color: var(--primary);
+            text-decoration: none;
+        }
+
+        .logo-icon {
+            width: 42px;
+            height: 42px;
+            background: linear-gradient(135deg, var(--primary), #4285f4);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.4em;
+            color: white;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            list-style: none;
+        }
+
+        .nav-links a {
+            text-decoration: none;
+            color: var(--text);
+            font-weight: 500;
+            padding: 10px 18px;
+            border-radius: 25px;
+            transition: var(--transition);
+            font-size: 0.95em;
+        }
+
+        .nav-links a:hover {
+            background: #e8f0fe;
+            color: var(--primary);
+        }
+
+        .btn-nav {
+            background: var(--primary) !important;
+            color: white !important;
+            font-weight: 600 !important;
+            padding: 12px 24px !important;
+            box-shadow: 0 4px 12px rgba(26, 115, 232, 0.4);
+        }
+
+        .btn-nav:hover {
+            background: var(--primary-dark) !important;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(26, 115, 232, 0.5) !important;
+        }
+
+        .hamburger {
+            display: none;
+            flex-direction: column;
+            cursor: pointer;
+            gap: 5px;
+            z-index: 1001;
+        }
+
+        .hamburger span {
+            width: 28px;
+            height: 3px;
+            background: var(--text);
+            border-radius: 3px;
+            transition: var(--transition);
+        }
+
+        /* ==================== HERO SECTION ==================== */
+        .hero {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 120px 25px 60px;
+            position: relative;
+            overflow: hidden;
+            background: linear-gradient(180deg, #e8f4fd 0%, #f0f7ff 40%, #f8fafc 100%);
+        }
+
+        .hero-bg-pattern {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            opacity: 0.4;
+            background:
+                radial-gradient(circle at 20% 30%, rgba(26, 115, 232, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 80% 70%, rgba(52, 168, 83, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 50% 50%, rgba(251, 188, 4, 0.05) 0%, transparent 60%);
+        }
+
+        .hero-content {
+            max-width: 800px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .hero-badge {
+            display: inline-block;
+            background: white;
+            color: var(--primary);
+            padding: 8px 20px;
+            border-radius: 50px;
+            font-weight: 600;
+            font-size: 0.9em;
+            margin-bottom: 25px;
+            box-shadow: var(--shadow-sm);
+            animation: fadeInUp 0.6s ease;
+        }
+
+        .hero h1 {
+            font-size: 3.2em;
+            font-weight: 800;
+            line-height: 1.2;
+            margin-bottom: 20px;
+            background: linear-gradient(135deg, #1a73e8, #0d47a1);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: fadeInUp 0.6s ease 0.1s both;
+        }
+
+        .hero p {
+            font-size: 1.2em;
+            color: var(--text-light);
+            margin-bottom: 35px;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+            animation: fadeInUp 0.6s ease 0.2s both;
+        }
+
+        .hero-buttons {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            flex-wrap: wrap;
+            animation: fadeInUp 0.6s ease 0.3s both;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 15px 32px;
+            border-radius: 50px;
+            font-weight: 600;
+            font-size: 1.05em;
+            text-decoration: none;
+            cursor: pointer;
+            border: none;
+            transition: var(--transition);
+            text-align: center;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+            box-shadow: 0 6px 25px rgba(26, 115, 232, 0.4);
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-dark);
+            transform: translateY(-3px);
+            box-shadow: 0 10px 35px rgba(26, 115, 232, 0.5);
+        }
+
+        .btn-outline {
+            background: white;
+            color: var(--primary);
+            border: 2px solid var(--primary);
+        }
+
+        .btn-outline:hover {
+            background: #e8f0fe;
+            transform: translateY(-3px);
+        }
+
+        /* ==================== FEATURES SECTION ==================== */
+        .features {
+            padding: 80px 25px;
+            background: white;
+        }
+
+        .section-header {
+            text-align: center;
+            margin-bottom: 60px;
+        }
+
+        .section-header h2 {
+            font-size: 2.4em;
+            font-weight: 800;
+            color: var(--text);
+            margin-bottom: 15px;
+        }
+
+        .section-header p {
+            font-size: 1.1em;
+            color: var(--text-light);
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 30px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .feature-card {
+            background: white;
+            padding: 35px 25px;
+            border-radius: var(--radius-lg);
+            text-align: center;
+            transition: var(--transition);
+            border: 1px solid #e8e8e8;
+            position: relative;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-8px);
+            box-shadow: var(--shadow-lg);
+            border-color: transparent;
+        }
+
+        .feature-icon {
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px;
+            font-size: 2em;
+        }
+
+        .feature-card:nth-child(1) .feature-icon {
+            background: #e8f0fe;
+        }
+        .feature-card:nth-child(2) .feature-icon {
+            background: #e6f4ea;
+        }
+        .feature-card:nth-child(3) .feature-icon {
+            background: #fef7e0;
+        }
+        .feature-card:nth-child(4) .feature-icon {
+            background: #fce8e6;
+        }
+        .feature-card:nth-child(5) .feature-icon {
+            background: #e8f0fe;
+        }
+        .feature-card:nth-child(6) .feature-icon {
+            background: #f3e8fd;
+        }
+
+        .feature-card h3 {
+            font-size: 1.3em;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+
+        .feature-card p {
+            color: var(--text-light);
+            font-size: 0.95em;
+        }
+
+        /* ==================== STATS SECTION ==================== */
+        .stats-section {
+            padding: 60px 25px;
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: white;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 30px;
+            max-width: 1000px;
+            margin: 0 auto;
+            text-align: center;
+        }
+
+        .stat-item h3 {
+            font-size: 3em;
+            font-weight: 800;
+        }
+
+        .stat-item p {
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+
+        /* ==================== HOW IT WORKS ==================== */
+        .how-it-works {
+            padding: 80px 25px;
+            background: var(--bg);
+        }
+
+        .steps {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 30px;
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        .step-card {
+            text-align: center;
+            padding: 30px 20px;
+            position: relative;
+        }
+
+        .step-number {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: var(--primary);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px;
+            font-size: 1.5em;
+            font-weight: 800;
+            box-shadow: 0 6px 20px rgba(26, 115, 232, 0.4);
+        }
+
+        .step-card h3 {
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .step-card p {
+            color: var(--text-light);
+            font-size: 0.95em;
+        }
+
+        /* ==================== CTA SECTION ==================== */
+        .cta-section {
+            padding: 80px 25px;
+            text-align: center;
+            background: white;
+        }
+
+        .cta-box {
+            max-width: 700px;
+            margin: 0 auto;
+            padding: 50px 30px;
+            background: linear-gradient(135deg, #e8f4fd, #f0f7ff);
+            border-radius: var(--radius-lg);
+            border: 2px dashed #c5d9f0;
+        }
+
+        .cta-box h2 {
+            font-size: 2em;
+            font-weight: 800;
+            margin-bottom: 15px;
+        }
+
+        .cta-box p {
+            color: var(--text-light);
+            margin-bottom: 30px;
+            font-size: 1.05em;
+        }
+
+        /* ==================== FOOTER ==================== */
+        footer {
+            background: #1e293b;
+            color: #cbd5e1;
+            padding: 30px 25px;
+            text-align: center;
+            font-size: 0.9em;
+        }
+
+        footer a {
+            color: #93c5fd;
+            text-decoration: none;
+        }
+
+        /* ==================== ANIMATIONS ==================== */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .animate-on-scroll {
+            opacity: 0;
+            transform: translateY(40px);
+            transition: opacity 0.8s ease, transform 0.8s ease;
+        }
+
+        .animate-on-scroll.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* ==================== RESPONSIVE ==================== */
+        @media (max-width: 768px) {
+            .nav-links {
+                position: fixed;
+                top: 0;
+                right: -100%;
+                width: 75%;
+                max-width: 350px;
+                height: 100vh;
+                background: white;
+                flex-direction: column;
+                padding: 100px 30px 30px;
+                box-shadow: var(--shadow-lg);
+                transition: var(--transition);
+                gap: 20px;
+            }
+
+            .nav-links.active {
+                right: 0;
+            }
+
+            .hamburger {
+                display: flex;
+            }
+
+            .hero h1 {
+                font-size: 2.2em;
+            }
+
+            .hero p {
+                font-size: 1em;
+            }
+
+            .features-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ==================== NAVBAR ==================== -->
+    <nav class="navbar" id="navbar">
+        <div class="nav-container">
+            <a href="#" class="logo">
+                <div class="logo-icon">📋</div>
+                SuratKu
+            </a>
+            <ul class="nav-links" id="navLinks">
+                <li><a href="#beranda">Beranda</a></li>
+                <li><a href="#fitur">Fitur</a></li>
+                <li><a href="#cara-kerja">Cara Kerja</a></li>
+                <li><a href="#mulai">Mulai</a></li>
+                <li><a href="#" class="btn-nav" onclick="bukaAplikasi()">🚀 Buka Aplikasi</a></li>
+            </ul>
+            <div class="hamburger" id="hamburger" onclick="toggleMenu()">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- ==================== HERO SECTION ==================== -->
+    <section class="hero" id="beranda">
+        <div class="hero-bg-pattern"></div>
+        <div class="hero-content">
+            <div class="hero-badge">🇮🇩 Solusi Surat Menyurat Modern</div>
+            <h1>Kelola Surat dengan Mudah, Cepat & Rapi</h1>
+            <p>
+                Sistem manajemen surat masuk dan keluar yang simpel, efisien, dan bisa langsung digunakan.
+                Nomor otomatis, arsip digital, dan siap cetak kapan saja.
+            </p>
+            <div class="hero-buttons">
+                <a href="#" class="btn btn-primary" onclick="bukaAplikasi()">🚀 Mulai Sekarang</a>
+                <a href="#fitur" class="btn btn-outline">🔍 Lihat Fitur</a>
+            </div>
+        </div>
+    </section>
+
+    <!-- ==================== FEATURES SECTION ==================== -->
+    <section class="features" id="fitur">
+        <div class="section-header">
+            <h2>Fitur Unggulan</h2>
+            <p>Semua yang Anda butuhkan untuk mengelola surat-menyurat dalam satu sistem</p>
+        </div>
+        <div class="features-grid">
+            <div class="feature-card animate-on-scroll">
+                <div class="feature-icon">📝</div>
+                <h3>Buat Surat Otomatis</h3>
+                <p>Nomor surat ter-generate otomatis berdasarkan format yang rapi dan profesional.</p>
+            </div>
+            <div class="feature-card animate-on-scroll">
+                <div class="feature-icon">📥</div>
+                <h3>Surat Masuk</h3>
+                <p>Catat dan arsipkan semua surat masuk dengan mudah, lengkap dengan pencarian cepat.</p>
+            </div>
+            <div class="feature-card animate-on-scroll">
+                <div class="feature-icon">📤</div>
+                <h3>Surat Keluar</h3>
+                <p>Kelola surat keluar, lacak riwayat pengiriman, dan arsipkan secara digital.</p>
+            </div>
+            <div class="feature-card animate-on-scroll">
+                <div class="feature-icon">🖨️</div>
+                <h3>Preview & Cetak</h3>
+                <p>Lihat tampilan surat sebelum mencetak. Hasil cetak rapi dan profesional.</p>
+            </div>
+            <div class="feature-card animate-on-scroll">
+                <div class="feature-icon">📊</div>
+                <h3>Dashboard Statistik</h3>
+                <p>Pantau jumlah surat masuk dan keluar dalam satu tampilan dashboard informatif.</p>
+            </div>
+            <div class="feature-card animate-on-scroll">
+                <div class="feature-icon">💾</div>
+                <h3>Penyimpanan Lokal</h3>
+                <p>Data tersimpan aman di browser Anda. Tidak perlu instalasi atau server khusus.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- ==================== STATS SECTION ==================== -->
+    <section class="stats-section">
+        <div class="stats-grid">
+            <div class="stat-item animate-on-scroll">
+                <h3>100%</h3>
+                <p>Gratis Digunakan</p>
+            </div>
+            <div class="stat-item animate-on-scroll">
+                <h3>1 File</h3>
+                <p>Mudah Diinstall</p>
+            </div>
+            <div class="stat-item animate-on-scroll">
+                <h3>0</h3>
+                <p>Biaya Bulanan</p>
+            </div>
+            <div class="stat-item animate-on-scroll">
+                <h3>24/7</h3>
+                <p>Akses Offline</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- ==================== HOW IT WORKS ==================== -->
+    <section class="how-it-works" id="cara-kerja">
+        <div class="section-header">
+            <h2>Cara Kerja</h2>
+            <p>Hanya 3 langkah mudah untuk mulai mengelola surat Anda</p>
+        </div>
+        <div class="steps">
+            <div class="step-card animate-on-scroll">
+                <div class="step-number">1</div>
+                <h3>Buka Aplikasi</h3>
+                <p>Klik tombol "Buka Aplikasi" dan sistem langsung siap digunakan tanpa perlu login.</p>
+            </div>
+            <div class="step-card animate-on-scroll">
+                <div class="step-number">2</div>
+                <h3>Isi Data Surat</h3>
+                <p>Lengkapi form surat, nomor akan terisi otomatis. Simpan dan arsipkan.</p>
+            </div>
+            <div class="step-card animate-on-scroll">
+                <div class="step-number">3</div>
+                <h3>Kelola & Cetak</h3>
+                <p>Lihat daftar surat, cari dengan mudah, preview, dan cetak kapan saja.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- ==================== CTA SECTION ==================== -->
+    <section class="cta-section" id="mulai">
+        <div class="cta-box animate-on-scroll">
+            <h2>✨ Siap Mengelola Surat?</h2>
+            <p>
+                Tidak perlu install, tidak perlu daftar. Cukup klik tombol di bawah dan langsung gunakan sistemnya.
+                <strong>100% gratis!</strong>
+            </p>
+            <a href="#" class="btn btn-primary" onclick="bukaAp

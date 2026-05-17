@@ -1,0 +1,17 @@
+suratku/
+├── index.html # Landing page
+├── app.html # Halaman aplikasi
+├── assets/
+│ ├── css/
+│ │ └── style.css # Stylesheet utama
+│ ├── js/
+│ │ ├── app.js # Logic aplikasi
+│ │ └── landing.js # Logic landing page
+│ └── uploads/ # Folder upload file
+├── api/
+│ ├── config.php # Konfigurasi database
+│ ├── surat.php # API CRUD surat
+│ ├── upload.php # API upload file
+│ └── .htaccess # Konfigurasi Apache
+└── database/
+    └── schema.sql # Skema database MySQL

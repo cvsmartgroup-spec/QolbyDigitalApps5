@@ -1,0 +1,393 @@
+/**
+ * SuratKu - Aplikasi Surat Menyurat
+ * Koneksi ke REST API Backend
+ */
+
+// ==================== CONFIGURATION ====================
+const API_BASE_URL = '/api'; // Sesuaikan dengan URL hosting Anda
+// Contoh: const API_BASE_URL = 'https://suratku.com/api';
+
+let selectedFiles = [];
+
+// ==================== INITIALIZATION ====================
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('tanggalSurat').value = new Date().toISOString().split('T')[0];
+    checkConnection();
+    loadDashboard();
+});
+
+// ==================== API CONNECTION CHECK ====================
+async function checkConnection() {
+    const statusEl = document.getElementById('connectionStatus');
+    try {
+        const response = await fetch(`${API_BASE_URL}/surat.php?action=stats`);
+        if (response.ok) {
+            statusEl.textContent = '🟢 Online - Terhubung ke Server';
+            statusEl.className = 'connection-status online';
+        } else {
+            throw new Error('Server error');
+        }
+    } catch (error) {
+        statusEl.textContent = '🔴 Offline - Mode Lokal';
+        statusEl.className = 'connection-status offline';
+        console.warn('Tidak dapat terhubung ke server, menggunakan localStorage');
+    }
+}
+
+// ==================== API CALLS ====================
+async function apiCall(endpoint, options = {}) {
+    try {
+        const response = await fetch(`${API_BASE_URL}/${endpoint}`, {
+            headers: { 'Content-Type': 'application/json', ...options.headers },
+            ...options
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.message || 'Request failed');
+        }
+        
+        return await response.json();
+    } catch (error) {
+        console.error('API Error:', error);
+        // Fallback ke localStorage jika API tidak tersedia
+        return null;
+    }
+}
+
+// ==================== DASHBOARD ====================
+async function loadDashboard() {
+    // Stats
+    const stats = await apiCall('surat.php?action=stats');
+    
+    if (stats && stats.status === 'success') {
+        const d = stats.data;
+        document.getElementById('statsContainer').innerHTML = `
+            <div class="stat-card"><h4>${d.total_surat}</h4><p>Total Surat</p></div>
+            <div class="stat-card"><h4>${d.surat_masuk}</h4><p>Surat Masuk</p></div>
+            <div class="stat-card"><h4>${d.surat_keluar}</h4><p>Surat Keluar</p></div>
+            <div class="stat-card"><h4>${d.total_lampiran}</h4><p>Lampiran</p></div>
+        `;
+    }
+    
+    // Recent surat
+    const recent = await apiCall('surat.php?limit=5');
+    const container = document.getElementById('recentSurat');
+    
+    if (recent && recent.status === 'success' && recent.data.length > 0) {
+        container.innerHTML = `
+            <table>
+                <thead><tr><th>Nomor</th><th>Tanggal</th><th>Jenis</th><th>Perihal</th><th>Aksi</th></tr></thead>
+                <tbody>
+                    ${recent.data.map(s => `
+                        <tr>
+                            <td><strong>${s.nomor_surat}</strong></td>
+                            <td>${formatTanggal(s.tanggal_surat)}</td>
+                            <td><span class="badge ${s.jenis === 'masuk' ? 'badge-masuk' : 'badge-keluar'}">${s.jenis === 'masuk' ? 'Masuk' : 'Keluar'}</span></td>
+                            <td>${s.perihal}</td>
+                            <td><button class="btn btn-outline" style="padding:4px 10px;font-size:0.8em;" onclick="lihatSurat(${s.id})">👁️</button></td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        `;
+    } else {
+        container.innerHTML = '<div class="empty">📭 Belum ada surat</div>';
+    }
+}
+
+// ==================== LOAD SURAT LIST ====================
+async function loadSurat(jenis, page = 1) {
+    const searchTerm = document.getElementById(`search${jenis.charAt(0).toUpperCase() + jenis.slice(1)}`).value;
+    const tbody = document.getElementById(`tbody${jenis.charAt(0).toUpperCase() + jenis.slice(1)}`);
+    
+    let url = `surat.php?jenis=${jenis}&page=${page}&limit=15`;
+    if (searchTerm) url += `&search=${encodeURIComponent(searchTerm)}`;
+    
+    const result = await apiCall(url);
+    
+    if (result && result.status === 'success') {
+        if (result.data.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" class="empty">📭 Tidak ada surat</td></tr>';
+            return;
+        }
+        
+        tbody.innerHTML = result.data.map((s, i) => {
+            const pihak = jenis === 'masuk' ? s.pengirim : s.penerima;
+            return `
+                <tr>
+                    <td>${(page - 1) * 15 + i + 1}</td>
+                    <td><strong>${s.nomor_surat}</strong></td>
+                    <td>${formatTanggal(s.tanggal_surat)}</td>
+                    <td>${pihak}</td>
+                    <td>${s.perihal}</td>
+                    <td><span class="badge" style="background:#fef3c7;color:#92400e;">${s.status}</span></td>
+                    <td>
+                        <button class="btn btn-outline" style="padding:4px 8px;font-size:0.75em;" onclick="lihatSurat(${s.id})">👁️</button>
+                        <button class="btn btn-danger" style="padding:4px 8px;font-size:0.75em;" onclick="hapusSurat(${s.id})">🗑️</button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+        
+        // Pagination
+        const pagContainer = document.getElementById(`pagination${jenis.charAt(0).toUpperCase() + jenis.slice(1)}`);
+        if (result.pagination.total_pages > 1) {
+            let pagHTML = '';
+            for (let i = 1; i <= result.pagination.total_pages; i++) {
+                pagHTML += `<button class="btn ${i === page ? 'btn-primary' : 'btn-outline'}" style="padding:6px 12px;margin:2px;" onclick="loadSurat('${jenis}', ${i})">${i}</button>`;
+            }
+            pagContainer.innerHTML = pagHTML;
+        } else {
+            pagContainer.innerHTML = '';
+        }
+    } else {
+        tbody.innerHTML = '<tr><td colspan="7" class="empty">⚠️ Gagal memuat data</td></tr>';
+    }
+}
+
+// ==================== CREATE SURAT ====================
+async function simpanSurat(event) {
+    event.preventDefault();
+    
+    const data = {
+        jenis: document.getElementById('jenisSurat').value,
+        nomor_surat: document.getElementById('nomorSurat').value,
+        tanggal_surat: document.getElementById('tanggalSurat').value,
+        pengirim: document.getElementById('pengirim').value,
+        penerima: document.getElementById('penerima').value,
+        perihal: document.getElementById('perihal').value,
+        isi_surat: document.getElementById('isiSurat').value,
+        penanda_tangan: document.getElementById('penandaTangan').value,
+        status: 'draft',
+        user_id: 1
+    };
+    
+    const result = await apiCall('surat.php', {
+        method: 'POST',
+        body: JSON.stringify(data)
+    });
+    
+    if (result && result.status === 'success') {
+        // Upload file jika ada
+        if (selectedFiles.length > 0 && result.data.id) {
+            await uploadFiles(result.data.id);
+        }
+        
+        showToast('✅ Surat berhasil disimpan!');
+        document.getElementById('formSurat').reset();
+        document.getElementById('nomorSurat').value = '';
+        document.getElementById('fileList').innerHTML = '';
+        selectedFiles = [];
+        loadDashboard();
+        showTab('dashboard');
+    } else {
+        showToast('❌ Gagal menyimpan surat', true);
+    }
+}
+
+// ==================== UPLOAD FILES ====================
+async function uploadFiles(suratId) {
+    for (const file of selectedFiles) {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('surat_id', suratId);
+        formData.append('user_id', 1);
+        
+        try {
+            await fetch(`${API_BASE_URL}/upload.php`, {
+                method: 'POST',
+                body: formData
+            });
+        } catch (error) {
+            console.error('Upload error:', error);
+        }
+    }
+}
+
+function handleFileSelect(event) {
+    const files = Array.from(event.target.files);
+    selectedFiles = [...selectedFiles, ...files];
+    renderFileList();
+}
+
+function renderFileList() {
+    const container = document.getElementById('fileList');
+    container.innerHTML = selectedFiles.map((file, index) => `
+        <div class="file-item">
+            <span>📎 ${file.name} (${formatSize(file.size)})</span>
+            <button class="btn btn-danger" style="padding:4px 8px;font-size:0.75em;" onclick="removeFile(${index})">✕</button>
+        </div>
+    `).join('');
+}
+
+function removeFile(index) {
+    selectedFiles.splice(index, 1);
+    renderFileList();
+}
+
+// ==================== GENERATE NOMOR ====================
+async function generateNomor() {
+    const jenis = document.getElementById('jenisSurat').value;
+    if (!jenis) {
+        document.getElementById('nomorSurat').value = '';
+        return;
+    }
+    
+    const result = await apiCall(`surat.php?action=generate_nomor&jenis=${jenis}`);
+    
+    if (result && result.status === 'success') {
+        document.getElementById('nomorSurat').value = result.data.nomor_surat;
+    } else {
+        // Fallback: generate lokal
+        const now = new Date();
+        const kode = jenis === 'masuk' ? 'SM' : 'SK';
+        document.getElementById('nomorSurat').value = `001/${kode}/${now.getMonth()+1}/${now.getFullYear()}`;
+    }
+}
+
+// ==================== VIEW SURAT ====================
+async function lihatSurat(id) {
+    const result = await apiCall(`surat.php?id=${id}`);
+    
+    if (result && result.status === 'success') {
+        const s = result.data;
+        const preview = document.getElementById('letterPreview');
+        
+        let lampiranHTML = '';
+        if (s.lampiran && s.lampiran.length > 0) {
+            lampiranHTML = '<p><strong>📎 Lampiran:</strong></p><ul>' + 
+                s.lampiran.map(l => `<li><a href="${API_BASE_URL}/../assets/uploads/${l.path_file}" target="_blank">${l.nama_asli}</a> (${formatSize(l.ukuran_file)})</li>`).join('') +
+                '</ul>';
+        }
+        
+        preview.innerHTML = `
+            <div class="kop">
+                <h4>${s.jenis === 'masuk' ? 'SURAT MASUK' : 'SURAT KELUAR'}</h4>
+                <p>Nomor: ${s.nomor_surat}</p>
+                <p>Tanggal: ${formatTanggal(s.tanggal_surat)}</p>
+            </div>
+            <p><strong>Kepada Yth:</strong><br>${s.penerima}</p>
+            <p><strong>Dari:</strong><br>${s.pengirim}</p>
+            <p><strong>Perihal:</strong> ${s.perihal}</p>
+            <div class="isi">${s.isi_surat.replace(/\n/g, '<br>')}</div>
+            ${lampiranHTML}
+            <div class="ttd">
+                <p>Hormat kami,</p>
+                <br><br>
+                <p><strong>${s.penanda_tangan}</strong></p>
+            </div>
+        `;
+        
+        document.getElementById('modalPreview').classList.add('active');
+    }
+}
+
+function previewSurat() {
+    const s = {
+        jenis: document.getElementById('jenisSurat').value || 'keluar',
+        nomor_surat: document.getElementById('nomorSurat').value || 'Nomor belum di-generate',
+        tanggal_surat: document.getElementById('tanggalSurat').value || new Date().toISOString().split('T')[0],
+        penerima: document.getElementById('penerima').value || '(Penerima)',
+        pengirim: document.getElementById('pengirim').value || '(Pengirim)',
+        perihal: document.getElementById('perihal').value || '(Perihal)',
+        isi_surat: document.getElementById('isiSurat').value || '(Isi surat kosong)',
+        penanda_tangan: document.getElementById('penandaTangan').value || 'Pimpinan',
+        lampiran: []
+    };
+    
+    const preview = document.getElementById('letterPreview');
+    preview.innerHTML = `
+        <div class="kop">
+            <h4>${s.jenis === 'masuk' ? 'SURAT MASUK' : 'SURAT KELUAR'}</h4>
+            <p>Nomor: ${s.nomor_surat}</p>
+            <p>Tanggal: ${formatTanggal(s.tanggal_surat)}</p>
+        </div>
+        <p><strong>Kepada Yth:</strong><br>${s.penerima}</p>
+        <p><strong>Dari:</strong><br>${s.pengirim}</p>
+        <p><strong>Perihal:</strong> ${s.perihal}</p>
+        <div class="isi">${s.isi_surat.replace(/\n/g, '<br>')}</div>
+        <div class="ttd">
+            <p>Hormat kami,</p>
+            <br><br>
+            <p><strong>${s.penanda_tangan}</strong></p>
+        </div>
+    `;
+    
+    document.getElementById('modalPreview').classList.add('active');
+}
+
+// ==================== DELETE SURAT ====================
+async function hapusSurat(id) {
+    if (!confirm('Yakin ingin menghapus surat ini? Data tidak dapat dikembalikan.')) return;
+    
+    const result = await apiCall(`surat.php?id=${id}&user_id=1`, { method: 'DELETE' });
+    
+    if (result && result.status === 'success') {
+        showToast('✅ Surat berhasil dihapus');
+        loadDashboard();
+        // Reload tab yang aktif
+        const activeTab = document.querySelector('.tab-content.active');
+        if (activeTab.id === 'masuk') loadSurat('masuk');
+        if (activeTab.id === 'keluar') loadSurat('keluar');
+    } else {
+        showToast('❌ Gagal menghapus surat', true);
+    }
+}
+
+// ==================== UTILITIES ====================
+function showTab(tabName) {
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.nav-tabs button').forEach(b => b.classList.remove('active'));
+    
+    const target = document.getElementById(tabName);
+    if (target) target.classList.add('active');
+    
+    // Update nav button
+    const buttons = document.querySelectorAll('.nav-tabs button');
+    const tabMap = { dashboard: 0, buat: 1, masuk: 2, keluar: 3 };
+    if (buttons[tabMap[tabName]]) buttons[tabMap[tabName]].classList.add('active');
+    
+    // Load data
+    if (tabName === 'dashboard') loadDashboard();
+    if (tabName === 'masuk') loadSurat('masuk');
+    if (tabName === 'keluar') loadSurat('keluar');
+    if (tabName === 'buat') generateNomor();
+}
+
+function formatTanggal(tanggal) {
+    if (!tanggal) return '-';
+    const t = new Date(tanggal);
+    const bulan = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+    return `${t.getDate()} ${bulan[t.getMonth()]} ${t.getFullYear()}`;
+}
+
+function formatSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / 1048576).toFixed(1) + ' MB';
+}
+
+function showToast(message, isError = false) {
+    const toast = document.createElement('div');
+    toast.className = 'toast';
+    toast.style.background = isError ? '#ef4444' : '#10b981';
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
+}
+
+function resetForm() {
+    document.getElementById('nomorSurat').value = '';
+    document.getElementById('jenisSurat').value = '';
+    document.getElementById('fileList').innerHTML = '';
+    selectedFiles = [];
+}
+
+// Modal close on outside click
+document.addEventListener('click', function(e) {
+    const modal = document.getElementById('modalPreview');
+    if (e.target === modal) {
+        modal.classList.remove('active');
+    }
+});
